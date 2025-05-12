@@ -2,12 +2,7 @@
 #include <util/delay.h>
 #include <stdbool.h>
 
-uint16_t distance, time;
-
-// komentarz: 
-
-bool mode = 0; // 0 - manual  |  1 - auto
-
+// TESTOWE ---------------------------------------------------------------------------------
 
 void sprawdzaj_diody() {
     while(1) {
@@ -21,8 +16,8 @@ void sprawdzaj_diody() {
 
 void sprawdzaj_przyciski() {
     while (1) {
-//        if (PIND & 0b10000000 || PIND & 0b00100000) { // D7 lub D5
-    	if (PIND & 0b10000000) { // D7
+        if (PIND & 0b10000000 || PIND & 0b00100000) { // D7 lub D5
+    	//if (PIND & 0b10000000) { // D7
             PORTB |= 0b00000001;
             _delay_ms(200);
         }
@@ -62,7 +57,7 @@ void steruj_jednym_silnikiem_przyciskami() {
         }
 
         // Zmiana kierunku obrotu z chwilowym zatrzymaniem
-//        if (PIND & 0b10000000) { //zmiana do debuegowania
+//        if (PIND & 0b10000000) { //zmiana do debugowania
 //            if (PORTB & 0b00000010) {
 //                PORTB &= 0b11111101;
 //                _delay_ms(1000);
@@ -77,6 +72,35 @@ void steruj_jednym_silnikiem_przyciskami() {
     }
 }
 
+void czujnik_buzzer(){
+	//PORTC |= 0b00001000; wlaczenie buzzera biiiip
+	uint16_t distance1, time1;
+
+	while(1) {
+		PORTC |= 0b00000010;
+	_delay_us(10);
+	PORTC &= 0b11111101;
+	time1 = 1;//= pulseInHigh();
+	distance1 = (time1 * 34) / 1000 / 2;
+	_delay_ms(500);
+
+	for (uint16_t i = 0; i < distance1; i++) {
+		PORTC |= 0b00001000;
+		_delay_ms(100);
+		PORTC &= 0b11110111;
+		_delay_ms(100);
+	}
+	_delay_ms(5000);
+	}
+
+}
+
+
+// MAIN PROGRAM ------------------------------------------------------------------------------
+
+uint16_t distance, time;
+
+bool mode = 0; // 0 - manual  |  1 - auto
 
 void timer1_init()
 {
@@ -85,14 +109,16 @@ void timer1_init()
     TCNT1 = 0;                // Reset counter
 }
 
-void buzz(){
+void buzz_on(){
 	PORTC |= 0b00001000;
+}
 
+void buzz_off() {
+	PORTC &= 0b11110111;
 }
 
 uint16_t pulseInHigh()
 {
-
     // Wait for pin to go HIGH
     while (!(PINC & 0b00000100));
     TCNT1 = 0;  // Reset timer
@@ -107,28 +133,12 @@ uint16_t pulseInHigh()
     return ticks / 2;  // Convert to microseconds (since 1 tick = 0.5 µs)
 }
 
-
-void czujnik_buzzer(){
-	//PORTC |= 0b00001000; wlaczenie buzzera biiiip
-	uint16_t distance1, time1;
-
-	while(1) {
-		PORTC |= 0b00000010;
+void measure_distance() {
+	PORTC |= 0b00000010;
 	_delay_us(10);
 	PORTC &= 0b11111101;
-	time1 = pulseInHigh();
-	distance1 = (time1 * 34) / 1000 / 2;
-	_delay_ms(500);
-
-	for (uint16_t i = 0; i < distance1; i++) {
-		PORTC |= 0b00001000;
-		_delay_ms(100);
-		PORTC &= 0b11110111;
-		_delay_ms(100);
-	}
-	_delay_ms(5000);
-	}
-
+	time = pulseInHigh();
+	distance = (time * 34) / 1000 / 2;
 }
 
 // Returns true if mode button is pressed.
@@ -155,14 +165,15 @@ bool button_shoot_pressed() {
 void mode_update() {
     if (button_mode_pressed()) {
         mode = !mode;
-        _delay_ms(1000);
-    }
 
-    if (mode) {
-        PORTB |= 0b00000001;
-    }
-    else {
-        PORTB &= 0b11111110;
+        if (mode) {
+            PORTB |= 0b00000001;
+        }
+        else {
+            PORTB &= 0b11111110;
+        }
+
+        _delay_ms(1000);
     }
 }
 
@@ -187,11 +198,13 @@ void b_disable() {
 }
 
 void a_spin_left() {
-
+	PORTD &= 0b11111100;
+	PORTD |= 0b00000001;
 }
 
-void a_spid_right() {
-
+void a_spin_right() {
+	PORTD &= 0b11111100;
+	PORTD |= 0b00000010;
 }
 
 void a_stop_spin() {
@@ -199,11 +212,13 @@ void a_stop_spin() {
 }
 
 void b_spin_left() {
-
+	PORTD &= 0b11110011;
+	PORTD |= 0b00001000;
 }
 
-void b_spid_right() {
-
+void b_spin_right() {
+	PORTD &= 0b11110011;
+	PORTD |= 0b00000100;
 }
 
 void b_stop_spin() {
@@ -212,29 +227,77 @@ void b_stop_spin() {
 
 // Da ting goes SKRRA!
 void shoot() {
-    a_enable();
+	// open the detent
     b_enable();
-
+    a_enable();
+    a_spin_left();
     _delay_ms(3000);
-
+    a_spin_right();
+    _delay_ms(4000);
     b_disable();
-
-    _delay_ms(3000);
-
     a_disable();
-
-    _delay_ms(1000); // optional
 }
 
-//Automatic mode routine.
+void shoot2(){
+	// open the detent
+	//b_enable();
+	//b_spin_right();
+
+	// ball zium
+	a_enable();
+	a_spin_right();
+	//_delay_ms(3000);
+
+	// close the detent
+	//b_disable();
+	_delay_ms(200);
+	//b_enable();
+	//b_spin_right();
+	_delay_ms(3000);
+	//b_disable();
+
+	_delay_ms(1000);
+	// ball ziumed
+	a_disable();
+}
+
+void shoot3(){
+	b_enable();
+	b_spin_left();
+	_delay_ms(3000);
+	b_disable();
+	_delay_ms(1000);
+
+	a_enable();
+	a_spin_right();
+	b_enable();
+	b_spin_right();
+	_delay_ms(4000);
+
+}
+
+// Automatic mode routine.
 void automatic() {
-	if
+	measure_distance();
+	_delay_ms(500);
+	if (distance > 20 && distance < 40) {
+		buzz_on();
+		_delay_ms(1000);
+		buzz_off();
+		shoot2();
+		_delay_ms(3000);
+	}
+//	else if (distance >= 40 && distance < 100) {
+//		buzz_on();
+//		_delay_ms(50);
+//		buzz_off();
+//	}
 }
 
 // Manual mode routine.
 void manual() {
     if (button_shoot_pressed()) {
-        shoot();
+        shoot2();
     }
 }
 
@@ -246,7 +309,7 @@ void terminate() {
             manual();
         }
         else {
-        	automtic();
+        	automatic();
         }
     }
 }
@@ -280,18 +343,32 @@ void init() {
 		PORTD = 0b01010000;
 		// (Engine spin direction is not set yet here btw.)
 
-
+	timer1_init();
 }
 
 int main(void)
 {
     init();
-    timer1_init();
-    //PORTD = 0b01011001;
-    //PORTB |= 0b00000110;
-    //wlacz_silniki_na_chwile();
+//    terminate();
+
+//    sprawdzaj_diody();
 //    sprawdzaj_przyciski();
-//     sprawdzaj_diody();
-//     steruj_jednym_silnikiem_przyciskami();
-    czujnik_buzzer();
+//    buzz_on();
+//    buzz_off();
+
+//
+//    b_enable();
+//    b_spin_left();
+    //b_enable();
+//
+    a_enable();
+    a_spin_right();
+
+//
+//    while(1) {
+//    	automatic();
+//    }
+   // b_disable();
+
+
 }
